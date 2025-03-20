@@ -1,0 +1,1 @@
+rm -f quincy_standalone_R2B4_land-C-S0-1901-2019-gswp3_* NAMELIST_quincy_standalone_R2B4_land-C-S0-1901-1905-gswp3_jsb.log NAMELIST_quincy_standalone_R2B4_land-C-S0-1901-1905-gswp3_jsb_output my_job.*.out output_schedule.txt finish.status 
