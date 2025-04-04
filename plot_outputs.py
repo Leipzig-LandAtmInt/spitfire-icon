@@ -29,8 +29,8 @@ vars_phys={'name':'physics', 'vars':["a2l_t_air_box","a2l_wind_air_box", "a2l_wi
 vars_weather={'name':'weather','vars':["dfire_t_air_min_box", "dfire_t_air_max_box", "dfire_precip_daytime_box", "dfire_precip_qc_mavg_box", 
                                        "dfire_precip_mavg_box", "dfire_precip_daily_mmd_box"]}
 # page 13 + page 22
-vars_ni={'name':'Nesterov index', 'vars':[ "dfire_ab_moisture_diag_box"], # todo: add dfire_nesterov_index_box later, when units can be read by package
-                             'vars_aggr':{"dfire_fuel_moisture_box":{'omega_O':0, 'omega_NL':1}}} # omega O, omega ML
+vars_ni={'name':'Nesterov index', 'vars':["dfire_nesterov_index_box", "dfire_ab_moisture_diag_box"], 
+                             'vars_aggr':{"dfire_fuel_moisture_box":{'omega_O':0, 'omega_NL':1}}} 
 
 # page 16 (1st)
 vars_spread_first={'name':'spread (page 16-1)', 'vars':["dfire_i_surface_box", "dfire_fdi_box", "dfire_fuel_pm_tau_box", 
@@ -45,7 +45,7 @@ vars_mean_fire_area_diag={'name':'mean fire area diag', 'vars':["dfire_mean_fire
                                         "dfire_ros_f_box", "dfire_ros_b_box", "dfire_fdi_box"]}
 # page 19
 vars_ros_diag_first={'name':'ROS diagnostics (1st)', 'vars':["dfire_ros_f_box", "dfire_reaction_intensity_box", "dfire_prop_flux_ratio_box", 
-                                        "dfire_wind_factor_box", "dfire_preig_heat_box", "dfire_eff_heating_number_box"]}
+                                        "dfire_fuel_fwd_wind_factor_box", "dfire_preig_heat_box", "dfire_eff_heating_number_box"]}
 vars_ros_diag_second={'name':'ROS diagnostics (2nd)', 'vars':["dfire_fuel_fuel_bulk_density_box" ]}
 
 # page 20
@@ -114,7 +114,7 @@ lon_site=5.4
 
 years = {}
 years["start"]= 1901
-years["end"]  = 1930
+years["end"]  = 1903
 # YYYY is replaced by year
 filename_template="quincy_standalone_R2B4_land-C-S0-1901-2019-gswp3_lnd_basic_ml_YYYY0101T000000Z_t63.nc"
 
@@ -161,10 +161,10 @@ with PdfPages('outputs.pdf') as pdf:
     for newPage in outputPages: # Create a new page
         print("New page '%s'" % newPage['name'])
         # if LaTeX is not installed or error caught, change to `usetex=False`
-        plt.rc('text', usetex=True)
+        #plt.rc('text', usetex=True)
         plt.figure() 
         plt.axis('off')
-        plt.text(0.5,0.5,"my title",ha='center',va='top')
+        plt.text(0.5,1,newPage['name'],ha='center',va='top', fontweight='bold')
 
         figureCount=1 # shared between vars and vars_aggr
 
@@ -178,6 +178,8 @@ with PdfPages('outputs.pdf') as pdf:
                 print("Number of dims, shape:", var_site.ndim, var_site.shape)
                 is_var_multi_dim = var_site.ndim > 1
                 is_var_many_dims = var_site.ndim > 2
+                std_name=var_site.attrs['standard_name']
+                units = var_site.attrs['units']
 
                 if is_var_multi_dim: # Aggregate dimensions (when > 1 dims)
                     var_site=var_site.sum(axis=1) #
@@ -185,6 +187,10 @@ with PdfPages('outputs.pdf') as pdf:
                     raise Exception("Not implementation for more than 2 dimenions")
 
                 var_site.plot()
+                ylabel_name ="%s [%s]" % (std_name, units)
+                plt.ylabel(ylabel_name)
+                plt.xlabel('') # remove
+                plt.title('') # remove
                 figureCount=figureCount+1
 
         # example
@@ -198,12 +204,18 @@ with PdfPages('outputs.pdf') as pdf:
                     plt.subplot(3,2,figureCount) # row, col, index position
                     var_site = outputs[vname].sel(lat=lat_site, lon=lon_site, method='nearest')
                     print("Number of dims, shape:", var_site.ndim, var_site.shape)
+
+                    std_name=var_site.attrs['standard_name']
+                    units = var_site.attrs['units']
+                    ylabel_name ="%s - %s [%s]" % (std_name, subVName, units)
    
                     var_site[:,ixDim].plot()
+                    plt.ylabel(ylabel_name)
+                    plt.xlabel('') # remove
+                    plt.title('') # remove
                     figureCount=figureCount+1
 
-        #plt.tight_layout()
-        #plt.title('%s (Page %d)' % (newPage["name"], pageCount)) # related to the plot title, not the page 
+        plt.tight_layout()
         pdf.savefig()  # saves the current figure into a pdf page
         plt.close()
 
