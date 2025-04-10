@@ -8,20 +8,21 @@ Use 'evince' to load pdf
 
 import numpy as np
 import xarray as xr
+import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import datetime
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.pyplot import rc
 
+import sys
 
 mpl.rcParams.update(mpl.rcParamsDefault)
 rc('figure', figsize=(8.27,11.69)) # A4 size, portrait 
 
-cell_id=1
 
 # Template (up 6 plots per page)
-#vars_HERE={'name':'', 'vars':[""], 'vars_aggr':{}}
+#vars_HERE={'name':'', 'vars':[""], 'vars_aggr':{'name':dim_index}}
 
 # Outputs to show 
 vars_phys={'name':'physics', 'vars':["a2l_t_air_box","a2l_wind_air_box", "a2l_wind_10m_box"]}
@@ -114,7 +115,10 @@ lon_site=5.4
 
 years = {}
 years["start"]= 1901
-years["end"]  = 1903
+years["end"]  = 1903 # last year not included
+#plt_year_start='1901-01-01'
+#plt_year_end  ='1902-12-01' # ploting dates, due some discontinuity issues 
+
 # YYYY is replaced by year
 filename_template="quincy_standalone_R2B4_land-C-S0-1901-2019-gswp3_lnd_basic_ml_YYYY0101T000000Z_t63.nc"
 
@@ -122,10 +126,38 @@ filename_template="quincy_standalone_R2B4_land-C-S0-1901-2019-gswp3_lnd_basic_ml
 filenames=[]
 for year in range(years["start"], years["end"]):
     filenames.append(filename_template.replace("YYYY", str(year)))
+    print("Expected files: %s" % (filenames[-1]))
 
 print("Filenames:", filenames)
-outputs = xr.open_mfdataset(filenames)
+outputs = xr.open_mfdataset(filenames, decode_times=False)
 
+
+# parse date format given by IQ output file.
+units, formatting = outputs.time.attrs['units'].split('as') # parse netcdf 'time' units
+starting_date=datetime.datetime.strptime(str(outputs['time'].values[0]), formatting.lstrip()) # convert to datetime type
+gen_dates=pd.date_range(start=starting_date.strftime('%d/%m/%Y'), periods=outputs.sizes['time'], freq='MS') # convert to likeable format
+outputs['time']=gen_dates # put back to dataset
+
+#print(outputs)
+#print(outputs.time[:][0])
+
+# testing
+#plt.figure() 
+#plt.axis('off')
+#plt.text(0.5,1,'testing',ha='center',va='top', fontweight='bold')
+#ni = outputs["dfire_nesterov_index_box"].sel(lat=lat_site, lon=lon_site, method='nearest')
+#ni_short = ni.loc['1901-01-01':'1902-12-01']
+#with PdfPages('outputs.pdf') as pdf:
+#    plt.subplot(3,2,1) # row, col, index position
+#    ni_short.plot()
+#    plt.subplot(3,2,2) # row, col, index position
+##    ni_short.plot()
+
+    #plt.show()
+#    plt.tight_layout()
+#    pdf.savefig()  # saves the current figure into a pdf page
+#    plt.close()
+#sys.exit()
 
 # List to include pages into the pdf
 outputPages = []
@@ -136,7 +168,7 @@ outputPages.append(vars_veg_pools)
 outputPages.append(vargs_sb)
 outputPages.append(vars_dfire_dead_fuel)
 outputPages.append(vars_dfire_live_fuel)
-outputPages.append(vars_dfire_live_grass)
+#outputPages.append(vars_dfire_live_grass)
 outputPages.append(vars_dfire_live_tree)
 outputPages.append(vars_dfire_phys)
 outputPages.append(vars_dfire_spread)
@@ -161,7 +193,7 @@ with PdfPages('outputs.pdf') as pdf:
     for newPage in outputPages: # Create a new page
         print("New page '%s'" % newPage['name'])
         # if LaTeX is not installed or error caught, change to `usetex=False`
-        #plt.rc('text', usetex=True)
+        plt.rc('text', usetex=True)
         plt.figure() 
         plt.axis('off')
         plt.text(0.5,1,newPage['name'],ha='center',va='top', fontweight='bold')
@@ -169,13 +201,12 @@ with PdfPages('outputs.pdf') as pdf:
         figureCount=1 # shared between vars and vars_aggr
 
         if 'vars' in newPage: # if defined, keep going
-            #figureCount=1
             for varName in newPage['vars']: # Plot each variable into the same page
                 print("  Plotting var '%s' ... " % varName)
                 plt.subplot(3,2,figureCount) # row, col, index position
                 var_site = outputs[varName].sel(lat=lat_site, lon=lon_site, method='nearest')
 
-                print("Number of dims, shape:", var_site.ndim, var_site.shape)
+                #print("Number of dims, shape:", var_site.ndim, var_site.shape)
                 is_var_multi_dim = var_site.ndim > 1
                 is_var_many_dims = var_site.ndim > 2
                 std_name=var_site.attrs['standard_name']
@@ -194,9 +225,9 @@ with PdfPages('outputs.pdf') as pdf:
                 figureCount=figureCount+1
 
         # example
-        #vars_emissions_spc={'name':'emissions by species', 'vars':[],
-        #        'vars_aggr':{"dfire_fuel_emissions_spc_box": {"CO2":1, "CO":2, "CH4":3, "NH3":4, "N2O":5, "N2":6}}} # todo: by element instead of SUM
-        if 'vars_aggr' in newPage:
+        vars_emissions_spc={'name':'emissions by species', 'vars':[],
+                'vars_aggr':{"dfire_fuel_emissions_spc_box": {"CO2":1, "CO":2, "CH4":3, "NH3":4, "N2O":5, "N2":6}}} # todo: by element instead of SUM
+        if 'vars_aggr' in newPage: # quincy 3d variables: plot each dimension separately
             for vname, subplots in newPage['vars_aggr'].items(): # for each variable with subplots
                 print("  Plotting var_aggr... ", vname, subplots)
                 for subVName, ixDim in subplots.items(): # for 
@@ -215,7 +246,7 @@ with PdfPages('outputs.pdf') as pdf:
                     plt.title('') # remove
                     figureCount=figureCount+1
 
-        plt.tight_layout()
+        #plt.tight_layout()
         pdf.savefig()  # saves the current figure into a pdf page
         plt.close()
 
